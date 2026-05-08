@@ -182,6 +182,82 @@ public:
         }
         cout << "Accepted in state " << finalState << endl << endl;
     }
+
+    AutomatDFA transformToDFA() const {
+        vector<set<string>> subsets(1);
+
+        for (const string& state : states) {
+            int currentSize = subsets.size();
+
+            for (int i = 0; i < currentSize; i++) {
+                set<string> newSubset = subsets[i];
+                newSubset.insert(state);
+                subsets.push_back(newSubset);
+            }
+        }
+
+        auto getSubsetName = [](const set<string>& subset) {
+            if (subset.empty()) {
+                return string("{}");
+            }
+
+            string subsetName = "{";
+            bool isFirstState = true;
+
+            for (const string& state : subset) {
+                if (!isFirstState) {
+                    subsetName += ",";
+                }
+
+                subsetName += state;
+                isFirstState = false;
+            }
+
+            subsetName += "}";
+            return subsetName;
+        };
+
+        set<string> dfaStates;
+        set<string> dfaFinalStates;
+        vector<string> dfaTransitions;
+
+        for (const set<string>& subset : subsets) {
+            string subsetName = getSubsetName(subset);
+            dfaStates.insert(subsetName);
+
+            for (const string& state : subset) {
+                if (finalStates.count(state)) {
+                    dfaFinalStates.insert(subsetName);
+                    break;
+                }
+            }
+        }
+
+        for (const set<string>& subset : subsets) {
+            string fromState = getSubsetName(subset);
+
+            for (char letter : alphabet) {
+                set<string> nextSubset;
+
+                for (const string& state : subset) {
+                    if (transitionTable.count(state) && transitionTable.at(state).count(letter)) {
+                        for (const string& nextState : transitionTable.at(state).at(letter)) {
+                            nextSubset.insert(nextState);
+                        }
+                    }
+                }
+
+                string toState = getSubsetName(nextSubset);
+                dfaTransitions.push_back(fromState + " " + toState + " " + string(1, letter));
+            }
+        }
+
+        string dfaInitialState = getSubsetName({initialState});
+
+        return AutomatDFA(dfaStates.size(), dfaStates,
+                          dfaTransitions.size(), dfaTransitions,
+                          dfaInitialState, dfaFinalStates.size(), dfaFinalStates);
+    }
 };
 
 class AutomatLambdaNFA : public AutomatNFA {
@@ -424,6 +500,10 @@ public:
                           nfaTransitions, initialState,
                           newFinalStates.size(), newFinalStates);
     }
+
+    AutomatDFA transformToDFA() const {
+        return this->transformToNFA().transformToDFA();
+    }
 };
 
 int main() {
@@ -459,15 +539,15 @@ int main() {
 
     AutomatLambdaNFA LambdaNFA(numStates, states, numTransitions, transitions, initialState, numFinalStates, finalStates);
     LambdaNFA.printAlphabet();
-    AutomatNFA NFA = LambdaNFA.transformToNFA();
+    AutomatDFA DFA = LambdaNFA.transformToDFA();
 
     fin >> numWords;
     for (int i=0; i<numWords; i++) {
         string currWord;
         fin >> currWord;
-        if (NFA.wordIsAccepted(currWord)) {
+        if (DFA.wordIsAccepted(currWord)) {
             cout << "DA" << endl;
-            NFA.printAcceptingPath(currWord);
+            DFA.printAcceptingPath(currWord);
         }
         else cout << "NU" << endl << endl;
     }
