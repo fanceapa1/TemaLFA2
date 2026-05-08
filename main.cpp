@@ -18,9 +18,11 @@ protected:
     set <string> finalStates;
     map <string, map <char,string> > transitionTable;
 public:
+    virtual ~AutomatDFA() = default;
+
     AutomatDFA (int numStates, const set <string>& states, int numTransitions,
-    const vector <string>& transitions, string  initialState, int numFinalStates,
-    const set <string>& finalStates)
+                const vector <string>& transitions, string  initialState, int numFinalStates,
+                const set <string>& finalStates)
     : numStates(numStates),
       numFinalStates(numFinalStates),
       states(states),
@@ -37,7 +39,7 @@ public:
         }
     }
 
-    bool wordIsAccepted (const string& word) {
+    virtual bool wordIsAccepted (const string& word) {
         string currState = initialState;
         for (int i = 0; i < word.length(); i++) {
             char currentLetter = word[i];
@@ -134,7 +136,7 @@ public:
         }
     }
 
-    virtual bool wordIsAccepted(const string& word) {
+    bool wordIsAccepted(const string& word) override {
         set<string> currStates = {initialState};
 
         for (int i = 0; i < word.length(); i++) {
@@ -336,6 +338,92 @@ public:
         }
         cout << "Accepted in state " << finalState << endl << endl;
     }
+
+    AutomatNFA transformToNFA() const {
+        map<string, map<string, set<string>>> completedTransitions = transitionTable;
+
+        bool addedNewTransition;
+        do {
+            addedNewTransition = false;
+
+            for (const string& p : states) {
+                for (const string& q : states) {
+                    for (const string& r : states) {
+                        if (completedTransitions[p]["lambda"].count(q) &&
+                            completedTransitions[q]["lambda"].count(r)) {
+                            if (completedTransitions[p]["lambda"].insert(r).second) {
+                                addedNewTransition = true;
+                            }
+                        }
+                    }
+                }
+            }
+        } while (addedNewTransition);
+
+        set<string> newFinalStates = finalStates;
+        for (const string& p : states) {
+            for (const string& finalState : finalStates) {
+                if (completedTransitions[p]["lambda"].count(finalState)) {
+                    newFinalStates.insert(p);
+                }
+            }
+        }
+
+        map<string, map<char, set<string>>> nfaTransitionTable;
+
+        for (const auto& stateTransitions : completedTransitions) {
+            const string& fromState = stateTransitions.first;
+
+            for (const auto& letterTransitions : stateTransitions.second) {
+                const string& letter = letterTransitions.first;
+
+                if (letter == "lambda") {
+                    continue;
+                }
+
+                for (const string& toState : letterTransitions.second) {
+                    nfaTransitionTable[fromState][letter[0]].insert(toState);
+                }
+            }
+        }
+
+        for (const string& p : states) {
+            for (const string& q : completedTransitions[p]["lambda"]) {
+                if (!completedTransitions.count(q)) {
+                    continue;
+                }
+
+                for (const auto& letterTransitions : completedTransitions[q]) {
+                    const string& letter = letterTransitions.first;
+
+                    if (letter == "lambda") {
+                        continue;
+                    }
+
+                    for (const string& r : letterTransitions.second) {
+                        nfaTransitionTable[p][letter[0]].insert(r);
+                    }
+                }
+            }
+        }
+
+        vector<string> nfaTransitions;
+        for (const auto& stateTransitions : nfaTransitionTable) {
+            const string& fromState = stateTransitions.first;
+
+            for (const auto& letterTransitions : stateTransitions.second) {
+                char letter = letterTransitions.first;
+
+                for (const string& toState : letterTransitions.second) {
+                    nfaTransitions.push_back(fromState + " " + toState + " " + string(1, letter));
+                }
+            }
+        }
+
+        return AutomatNFA(numStates, states, nfaTransitions.size(),
+                          nfaTransitions, initialState,
+                          newFinalStates.size(), newFinalStates);
+    }
 };
 
 int main() {
@@ -371,14 +459,15 @@ int main() {
 
     AutomatLambdaNFA LambdaNFA(numStates, states, numTransitions, transitions, initialState, numFinalStates, finalStates);
     LambdaNFA.printAlphabet();
+    AutomatNFA NFA = LambdaNFA.transformToNFA();
 
     fin >> numWords;
     for (int i=0; i<numWords; i++) {
         string currWord;
         fin >> currWord;
-        if (LambdaNFA.wordIsAccepted(currWord)) {
+        if (NFA.wordIsAccepted(currWord)) {
             cout << "DA" << endl;
-            LambdaNFA.printAcceptingPath(currWord);
+            NFA.printAcceptingPath(currWord);
         }
         else cout << "NU" << endl << endl;
     }
