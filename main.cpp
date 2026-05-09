@@ -53,6 +53,6 @@ int main() {
         }
         else cout << "NU" << endl << endl;
     }
-
+    cout << LambdaNFA.toRegularExpression();
     return 0;
 }

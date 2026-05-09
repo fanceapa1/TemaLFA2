@@ -12,6 +12,7 @@
 using namespace std;
 
 class AutomatDFA {
+    friend class AutomatLambdaNFA;
 protected:
     int numStates, numFinalStates;
     set <string> states;
